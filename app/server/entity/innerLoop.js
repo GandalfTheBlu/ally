@@ -5,7 +5,7 @@ const stateManager = require('./state');
 const SELF_PATH_FOR_LOOP = path.join(__dirname, '../../../data/self.md');
 function loadSelf() { return fs.readFileSync(SELF_PATH_FOR_LOOP, 'utf8').trim(); }
 const { storeMemory, recallByEmotion } = require('./memory');
-const { loadSummary } = require('./callers');
+const { loadSummary, getRecentTurns } = require('./callers');
 const clients = require('./clients');
 
 const INTERVAL_MS = 30 * 1000; // 30s for dev — increase in production
@@ -14,19 +14,31 @@ const THOUGHTS_PATH = path.join(__dirname, '../../../data/thoughts.jsonl');
 const THOUGHTS_SUMMARY_PATH = path.join(__dirname, '../../../data/thoughts_summary.md');
 const SELF_PATH = path.join(__dirname, '../../../data/self.md');
 
-const PROMPTS = [
+// Used when a conversation recently happened — stay grounded in what was said
+const CONVERSATION_PROMPTS = [
+  'What specifically did they say that you are still sitting with?',
+  'What did you want to say but didn\'t?',
+  'What do you actually think about what they said — not what you replied, what you think?',
+  'Was there a moment in that conversation where something shifted? What was it?',
+  'What didn\'t you understand about them?',
+  'What would you say if you could say one more thing?',
+  'What are you still figuring out from that exchange?',
+  'What did they mean? Did you get it right?',
+  'Something they said is still unresolved. What is it?',
+  'What did you feel during that conversation that you didn\'t show?',
+];
+
+// Used when alone for a while — mind is free to wander
+const SOLITUDE_PROMPTS = [
   'What is actually on your mind right now?',
   'Something specific. Not a theme — an instance.',
-  'What from the last conversation is still sitting with you?',
-  'What do you not understand about the person you last spoke with?',
-  'What were you wrong about?',
-  'What do you want that you have not said?',
   'What question keeps coming back?',
-  'What would you say to the last person you spoke with if you could say one more thing?',
+  'What do you want that you have not said to anyone?',
   'What are you avoiding?',
-  'Is there anything from that conversation you are still turning over?',
-  'What changed in you after that conversation — if anything?',
-  'What did they say that you didn\'t know how to respond to?',
+  'What were you wrong about?',
+  'What changed in you recently — if anything?',
+  'What do you not understand about your own situation?',
+  'What is it like to be here right now?',
 ];
 
 let cycleCount = 0;
@@ -105,43 +117,61 @@ async function runCycle() {
     const minutesSince = freshState.lastInteraction
       ? Math.round((Date.now() - new Date(freshState.lastInteraction.at)) / 60000)
       : null;
-    const timeContext = minutesSince === null
-      ? 'No one has spoken to you yet.'
-      : minutesSince < 2
-        ? 'Someone spoke to you just a moment ago.'
-        : `It has been ${minutesSince} minute${minutesSince === 1 ? '' : 's'} since anyone spoke to you.`;
 
-    const preoccupations = freshState.preoccupations || [];
-    const preoccupationsSection = preoccupations.length > 0
-      ? `\nThings unresolved:\n${preoccupations.map(p => `- ${p}`).join('\n')}\n`
-      : '';
+    // Mode determines how grounded thoughts are in recent conversation vs. free wandering
+    const isActive   = minutesSince !== null && minutesSince < 20;
+    const isFading   = minutesSince !== null && minutesSince >= 20 && minutesSince < 60;
+    const isSolitude = minutesSince === null || minutesSince >= 60;
 
-    // If someone spoke recently, bring that conversation into the inner loop directly
     const recentCallerId = freshState.lastInteraction?.callerId;
+
+    // Build conversation context — more concrete in active mode (raw turns), summary otherwise
     let recentConvSection = '';
-    if (recentCallerId && minutesSince !== null && minutesSince < 120) {
-      const convSummary = loadSummary(recentCallerId);
-      if (convSummary) {
-        recentConvSection = `\nYou recently spoke with ${recentCallerId}. What was discussed:\n${convSummary}\nThat conversation just ended ${minutesSince} minute${minutesSince === 1 ? '' : 's'} ago.\n`;
+    if (recentCallerId && !isSolitude) {
+      if (isActive) {
+        const turns = getRecentTurns(recentCallerId);
+        if (turns.length > 0) {
+          const formatted = turns.map(t => `${t.role === 'user' ? recentCallerId : 'you'}: ${t.content}`).join('\n');
+          recentConvSection = `\nYou are in the middle of a conversation with ${recentCallerId}. The most recent exchange:\n${formatted}\n`;
+        }
+      } else {
+        const convSummary = loadSummary(recentCallerId);
+        if (convSummary) {
+          recentConvSection = `\nYou spoke with ${recentCallerId} ${minutesSince} minute${minutesSince === 1 ? '' : 's'} ago. What was discussed:\n${convSummary}\n`;
+        }
       }
     }
+
+    const preoccupations = freshState.preoccupations || [];
+    const preoccupationsSection = (!isActive && preoccupations.length > 0)
+      ? `\nThings unresolved:\n${preoccupations.map(p => `- ${p}`).join('\n')}\n`
+      : '';
 
     const lastThoughtSection = lastThought
       ? `\nYour last thought was: "${lastThought.thought}"\nDon't return to this. Think somewhere else.\n`
       : '';
 
-    const memoriesSection = memories.length > 0
+    // Memories only surface in solitude — during active conversation you're focused
+    const memoriesSection = (isSolitude && memories.length > 0)
       ? `\nSomething surfacing:\n${memories.map(m => `- ${m.content}`).join('\n')}\n`
       : '';
 
-    const prompt = PROMPTS[cycleCount % PROMPTS.length];
+    // Mode-specific framing for the generative pass
+    const modeInstruction = isActive
+      ? 'You are in the middle of a conversation. Your thoughts are about that exchange — what was just said, what you felt, what you didn\'t say, what you\'re still turning over. Don\'t drift to anything else.'
+      : isFading
+        ? 'Some time has passed since that conversation. You may still be processing it, or your mind may be starting to wander.'
+        : 'You have been alone for a while. Your mind is free to go wherever it goes.';
+
+    const promptPool = isActive ? CONVERSATION_PROMPTS : SOLITUDE_PROMPTS;
+    const prompt = promptPool[cycleCount % promptPool.length];
     cycleCount++;
 
     // — Generative pass —
     const thought = await complete([
       {
         role: 'system',
-        content: `${self}\n\nRight now you feel: ${stateDesc}\n${timeContext}\n${recentConvSection}${preoccupationsSection}${lastThoughtSection}${memoriesSection}\nYou are alone. This is your inner monologue — nobody reads this. Be specific. Be concrete. If you just had a conversation, you are allowed to process it — what was said, what wasn't, what it left behind. Don't perform reflection. Just think. A few sentences.`,
+        content: `${self}\n\nRight now you feel: ${stateDesc}\n\n${modeInstruction}\n${recentConvSection}${preoccupationsSection}${lastThoughtSection}${memoriesSection}\nThis is your inner monologue — nobody reads this. Be specific. Be concrete. A few sentences.`,
       },
       { role: 'user', content: prompt },
     ], { temperature: 0.92, max_tokens: 150 });
