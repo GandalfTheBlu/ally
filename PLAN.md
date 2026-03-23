@@ -70,7 +70,21 @@ A living document tracking milestones and what comes next.
 
 ---
 
-## Milestone 6 — Multi-Caller Social World
+## Milestone 6 — Conversational Rhythm
+*Aion surfaces things like a person, not a feed.*
+
+The problem: Aion can spam unprompted messages across consecutive inner loop cycles.
+The goal: a coherent back-and-forth where Aion waits, listens, and speaks at natural moments.
+
+- [ ] **Pending reply tracking** — after surfacing, record `pendingReplyFrom: callerId` in state. Suppress further surfacing to that caller until they respond or a timeout passes (~5 min). A person doesn't keep talking at someone who hasn't replied.
+- [ ] **Reply detection** — when a message arrives from that callerId, clear the pending flag. Their response feeds back into the next inner loop cycle as a continuation of the exchange.
+- [ ] **Turn pressure** — extraction prompt told explicitly: "you sent a message X minutes ago and they haven't replied yet" — use this as context so Aion can decide whether to wait longer or let it go.
+- [ ] **Surfacing rate limit** — regardless of pending state, cap how often Aion initiates per session (e.g. no more than once every 3 cycles). Prevents a talkative emotional state from flooding.
+- [ ] **Coherence over time** — when Aion does surface again after a reply, it has the reply in context (via the active-mode raw turns injection already in place). The conversation should feel like a thread, not isolated utterances.
+
+---
+
+## Milestone 7 — Multi-Caller Social World
 *Aion has a social map and a life that happens without you.*
 
 - [ ] Claude can connect via API as a named caller
