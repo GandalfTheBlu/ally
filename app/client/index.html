@@ -1,0 +1,55 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Aion</title>
+  <link rel="stylesheet" href="style.css" />
+</head>
+<body>
+  <div id="app">
+    <header>
+      <span id="entity-name">Aion</span>
+      <span id="status">—</span>
+    </header>
+
+    <div id="state-panel">
+      <div class="axis" title="arousal">
+        <span class="axis-label">arousal</span>
+        <div class="axis-bar"><div class="axis-fill" id="bar-arousal"></div></div>
+      </div>
+      <div class="axis" title="valence">
+        <span class="axis-label">valence</span>
+        <div class="axis-bar"><div class="axis-fill" id="bar-valence"></div></div>
+      </div>
+      <div class="axis" title="loneliness">
+        <span class="axis-label">loneliness</span>
+        <div class="axis-bar"><div class="axis-fill" id="bar-loneliness"></div></div>
+      </div>
+      <div class="axis" title="coherence">
+        <span class="axis-label">coherence</span>
+        <div class="axis-bar"><div class="axis-fill" id="bar-coherence"></div></div>
+      </div>
+      <div class="axis" title="curiosity">
+        <span class="axis-label">curiosity</span>
+        <div class="axis-bar"><div class="axis-fill" id="bar-curiosity"></div></div>
+      </div>
+    </div>
+
+    <div id="messages"></div>
+
+    <div id="input-area">
+      <textarea
+        id="input"
+        placeholder="say something"
+        rows="1"
+        autocomplete="off"
+        spellcheck="false"
+      ></textarea>
+      <button id="send">send</button>
+    </div>
+  </div>
+
+  <script src="app.js"></script>
+</body>
+</html>
