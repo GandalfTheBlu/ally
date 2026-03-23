@@ -4,6 +4,11 @@ const CALLER_ID = 'user';
 const messagesEl = document.getElementById('messages');
 const inputEl = document.getElementById('input');
 const sendBtn = document.getElementById('send');
+const resetBtn = document.getElementById('reset');
+const hardResetBtn = document.getElementById('hard-reset');
+const confirmOverlay = document.getElementById('confirm-overlay');
+const confirmCancel = document.getElementById('confirm-cancel');
+const confirmOk = document.getElementById('confirm-ok');
 const statusEl = document.getElementById('status');
 
 let responding = false;
@@ -149,4 +154,37 @@ inputEl.addEventListener('keydown', (e) => {
 });
 
 sendBtn.addEventListener('click', send);
+
+resetBtn.addEventListener('click', async () => {
+  await fetch('/api/reset', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ callerId: CALLER_ID }),
+  });
+  messagesEl.innerHTML = '';
+  inputEl.focus();
+});
+
+hardResetBtn.addEventListener('click', () => {
+  confirmOverlay.classList.remove('hidden');
+});
+
+confirmCancel.addEventListener('click', () => {
+  confirmOverlay.classList.add('hidden');
+});
+
+confirmOk.addEventListener('click', async () => {
+  confirmOverlay.classList.add('hidden');
+  setStatus('resetting...');
+  await fetch('/api/reset/hard', { method: 'POST' });
+  messagesEl.innerHTML = '';
+  fetchState();
+  setStatus('—');
+  inputEl.focus();
+});
+
+confirmOverlay.addEventListener('click', (e) => {
+  if (e.target === confirmOverlay) confirmOverlay.classList.add('hidden');
+});
+
 inputEl.focus();

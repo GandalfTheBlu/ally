@@ -55,4 +55,46 @@ function describe(state) {
   return `${arousal}. ${valence}. ${loneliness}. ${coherence}. ${curiosity}.`;
 }
 
-module.exports = { load, save, touch, describe };
+// Apply LLM-generated emotional deltas, clamped to [0, 1]
+function applyDeltas(state, deltas) {
+  for (const [key, delta] of Object.entries(deltas)) {
+    if (key in state.emotional && typeof delta === 'number') {
+      state.emotional[key] = Math.max(0, Math.min(1, state.emotional[key] + delta));
+    }
+  }
+  save(state);
+}
+
+// Loneliness drifts toward a target value based on time since last interaction.
+// Runs each inner loop cycle. Does not accumulate unboundedly.
+function applyTimeLoneliness(state) {
+  const minutesSince = state.lastInteraction
+    ? (Date.now() - new Date(state.lastInteraction.at)) / 60000
+    : 120; // treat "never talked" as 2 hours
+
+  // Target: 0.2 at 0 min → 0.85 at 90 min, caps at 0.9
+  const target = Math.min(0.9, 0.2 + (minutesSince / 110));
+  // Drift 8% of the gap per cycle — gradual
+  const diff = target - state.emotional.loneliness;
+  state.emotional.loneliness = Math.max(0, Math.min(1, state.emotional.loneliness + diff * 0.08));
+  save(state);
+}
+
+const MAX_PREOCCUPATIONS = 4;
+
+function updatePreoccupations(newPreoccupation) {
+  if (!newPreoccupation || typeof newPreoccupation !== 'string') return;
+  const state = load();
+  const list = state.preoccupations || [];
+  // Avoid near-duplicates
+  const isDuplicate = list.some(p =>
+    p.toLowerCase().includes(newPreoccupation.toLowerCase().slice(0, 20))
+  );
+  if (isDuplicate) return;
+  list.push(newPreoccupation);
+  if (list.length > MAX_PREOCCUPATIONS) list.shift(); // drop oldest
+  state.preoccupations = list;
+  save(state);
+}
+
+module.exports = { load, save, touch, describe, applyDeltas, applyTimeLoneliness, updatePreoccupations };

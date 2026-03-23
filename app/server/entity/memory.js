@@ -1,3 +1,4 @@
+const fs = require('fs');
 const path = require('path');
 const { LocalIndex } = require('vectra');
 const { embed, complete } = require('../llm');
@@ -94,4 +95,41 @@ async function recallMemories(message, topK = 3) {
   return reranked.slice(0, topK);
 }
 
-module.exports = { writeMemory, recallMemories };
+// Store a pre-extracted memory directly (used by inner loop)
+async function storeMemory(content, callerId, emotional) {
+  const vector = await embed(content);
+  if (!vector) return null;
+  await index.insertItem({
+    vector,
+    metadata: { content, callerId, emotional: { ...emotional }, createdAt: new Date().toISOString() },
+  });
+  return content;
+}
+
+// Recall memories by emotional congruence alone — no text query.
+// Used by the inner loop where there is no incoming message to embed.
+async function recallByEmotion(state, topK = 2) {
+  if (!await index.isIndexCreated()) return [];
+  const items = await index.listItems();
+  if (items.length === 0) return [];
+
+  // Embed the current felt state as a query
+  const queryVector = await embed(stateManager.describe(state));
+  if (!queryVector) return [];
+
+  const results = await index.queryItems(queryVector, topK);
+  return results.map(({ item }) => ({
+    content: item.metadata.content,
+    callerId: item.metadata.callerId,
+  }));
+}
+
+async function resetIndex() {
+  if (fs.existsSync(MEMORY_DIR)) {
+    fs.rmSync(MEMORY_DIR, { recursive: true, force: true });
+    fs.mkdirSync(MEMORY_DIR, { recursive: true });
+  }
+  await index.createIndex();
+}
+
+module.exports = { writeMemory, storeMemory, recallMemories, recallByEmotion, resetIndex };

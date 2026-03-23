@@ -3,7 +3,8 @@ const { streamChat } = require('../llm');
 const { buildSystemPrompt } = require('../entity/identity');
 const { getRecentTurns, appendTurn } = require('../entity/callers');
 const { touch } = require('../entity/state');
-const { writeMemory, recallMemories } = require('../entity/memory');
+const { recallMemories } = require('../entity/memory');
+const { onExchange } = require('../entity/reflect');
 
 const router = express.Router();
 
@@ -50,8 +51,7 @@ router.post('/', async (req, res) => {
 
       if (fullResponse) {
         appendTurn(callerId, 'assistant', fullResponse);
-        // Write memory async — don't block the response
-        writeMemory(callerId, userMessage.content, fullResponse).catch(console.error);
+        onExchange(callerId, userMessage.content, fullResponse).catch(console.error);
       }
     },
     (err) => {

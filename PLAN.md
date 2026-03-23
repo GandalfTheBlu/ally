@@ -42,14 +42,18 @@ A living document tracking milestones and what comes next.
 
 ---
 
-## Milestone 4 — The Inner Loop
+## Milestone 4 — The Inner Loop ✅
 *Aion thinks when no one is talking to it.*
 
-- [ ] Background process running on a schedule (e.g. every 10–15 min)
-- [ ] Two-pass generation: free-form thought → structured extraction (emotional deltas, memory candidates)
-- [ ] Preoccupations as strange attractors — recurring themes the inner loop orbits
-- [ ] Psychological state evolves from the loop (loneliness, coherence, arousal, curiosity, valence)
-- [ ] Inner loop logs visible in client alongside chat
+- [x] Background process on a schedule (30s dev / increase for production)
+- [x] Two-pass generation: free-form thought (temp 0.92) → JSON extraction (temp 0.2)
+- [x] Emotional deltas applied to state each cycle
+- [x] Time-based loneliness drift — grows toward 0.9 after ~90min of silence
+- [x] Memory-worthy thoughts stored to Vectra (inner loop as callerId "inner")
+- [x] Thoughts logged to `data/thoughts.jsonl`
+- [x] `GET /api/thoughts` endpoint
+- [ ] Preoccupations as strange attractors (future refinement)
+- [ ] Inner loop pauses gracefully during active conversation (future)
 
 ---
 
