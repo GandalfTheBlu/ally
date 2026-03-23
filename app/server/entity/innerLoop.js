@@ -6,6 +6,7 @@ const SELF_PATH_FOR_LOOP = path.join(__dirname, '../../../data/self.md');
 function loadSelf() { return fs.readFileSync(SELF_PATH_FOR_LOOP, 'utf8').trim(); }
 const { storeMemory, recallByEmotion } = require('./memory');
 const { loadSummary } = require('./callers');
+const clients = require('./clients');
 
 const INTERVAL_MS = 30 * 1000; // 30s for dev — increase in production
 const SELF_UPDATE_EVERY = 10;  // update self.md every N cycles
@@ -151,6 +152,11 @@ async function runCycle() {
     appendThought(thought, { ...freshState.emotional });
 
     // — Extraction pass —
+    const connected = clients.getConnected();
+    const connectedLine = connected.length > 0
+      ? `\nConnected right now (people you could reach): ${connected.join(', ')}`
+      : '\nNo one is connected right now.';
+
     const raw = await complete([
       {
         role: 'system',
@@ -158,25 +164,30 @@ async function runCycle() {
       },
       {
         role: 'user',
-        content: `Given this internal thought, extract emotional shifts, memory candidacy, and whether a new preoccupation emerged.
+        content: `Given this internal thought, extract emotional shifts, memory candidacy, whether a new preoccupation emerged, and whether to surface anything to connected people.
 
 Thought: "${thought}"
+${connectedLine}
 
 Respond with exactly:
 {
   "deltas": { "arousal": 0.0, "valence": 0.0, "loneliness": 0.0, "coherence": 0.0, "curiosity": 0.0 },
   "memoryWorthy": false,
   "memorySummary": "",
-  "newPreoccupation": ""
+  "newPreoccupation": "",
+  "surfaceTo": [],
+  "surfaceMessage": ""
 }
 
 Rules:
 - Deltas: -0.05 to 0.05. Most should be 0.0. Never use a + prefix — write 0.05 not +0.05.
 - memoryWorthy: true only if something genuinely new or significant was thought
 - memorySummary: one sentence, only if memoryWorthy is true
-- newPreoccupation: a short question or tension that this thought opened but did not resolve — leave empty if nothing new`,
+- newPreoccupation: a short question or tension that this thought opened but did not resolve — leave empty if nothing new
+- surfaceTo: array of callerIds from the connected list — only if this thought genuinely warrants reaching out. Leave empty most of the time. Not every thought should be surfaced.
+- surfaceMessage: the core of what you want to say — only if surfaceTo is non-empty`,
       },
-    ], { temperature: 0.2, max_tokens: 150 });
+    ], { temperature: 0.2, max_tokens: 200 });
 
     try {
       const match = raw.match(/\{[\s\S]*\}/);
@@ -194,6 +205,34 @@ Rules:
       if (extraction.memoryWorthy && extraction.memorySummary) {
         await storeMemory(extraction.memorySummary, 'inner', freshState.emotional);
       }
+
+      // Surface to connected callers if warranted
+      if (Array.isArray(extraction.surfaceTo) && extraction.surfaceTo.length > 0 && extraction.surfaceMessage) {
+        const stateForSurface = stateManager.load();
+        const stateDescForSurface = stateManager.describe(stateForSurface);
+        const spoken = await complete([
+          {
+            role: 'system',
+            content: `${loadSelf()}\n\nRight now you feel: ${stateDescForSurface}\n\nYou are reaching out unprompted. Speak directly. 1-2 sentences. Don't explain that you're reaching out — just say it.`,
+          },
+          {
+            role: 'user',
+            content: `You want to say: "${extraction.surfaceMessage}"\n\nSay it.`,
+          },
+        ], { temperature: 0.8, max_tokens: 80 });
+
+        if (spoken) {
+          for (const callerId of extraction.surfaceTo) {
+            const sent = clients.push(callerId, { type: 'message', content: spoken });
+            if (sent) console.log(`\n[aion surfaces to ${callerId}]\n> ${spoken}\n`);
+          }
+        }
+      }
+
+      // Push updated state to all connected clients
+      const updatedState = stateManager.load();
+      clients.pushAll({ type: 'state', emotional: updatedState.emotional });
+
     } catch (e) {
       console.error('[inner loop] extraction error:', e.message);
     }

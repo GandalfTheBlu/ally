@@ -35,7 +35,32 @@ async function fetchState() {
 }
 
 fetchState();
-setInterval(fetchState, 8000);
+
+// --- SSE stream ---
+
+function connectStream() {
+  const es = new EventSource(`/api/stream/${CALLER_ID}`);
+
+  es.onmessage = (e) => {
+    try {
+      const data = JSON.parse(e.data);
+      if (data.type === 'ping') return;
+      if (data.type === 'state' && data.emotional) {
+        updateStatePanel(data.emotional);
+      }
+      if (data.type === 'message' && data.content) {
+        appendMessage('entity', data.content, true);
+      }
+    } catch {}
+  };
+
+  es.onerror = () => {
+    es.close();
+    setTimeout(connectStream, 5000);
+  };
+}
+
+connectStream();
 
 // --- Chat ---
 
@@ -43,9 +68,10 @@ function setStatus(text) {
   statusEl.textContent = text;
 }
 
-function appendMessage(role, content = '') {
+function appendMessage(role, content = '', initiated = false) {
   const el = document.createElement('div');
   el.classList.add('message', role === 'user' ? 'user' : 'entity');
+  if (initiated) el.classList.add('initiated');
 
   const label = document.createElement('div');
   label.classList.add('label');

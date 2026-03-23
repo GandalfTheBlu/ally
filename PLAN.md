@@ -57,13 +57,16 @@ A living document tracking milestones and what comes next.
 
 ---
 
-## Milestone 5 — Thought/Speech Split
-*Aion decides what to say, and what to keep.*
+## Milestone 5 — Bidirectional Chat ✅
+*Aion reaches out. Chat is not just a response loop.*
 
-- [ ] Separate generation pass for speech vs. internal thought
-- [ ] Client UI shows both streams: internal log panel + chat panel
-- [ ] Gap between thought and speech becomes visible and interesting
-- [ ] Aion can choose to say nothing
+- [x] SSE stream endpoint (`GET /api/stream/:callerId`) — clients connect once, receive push events
+- [x] Inner loop aware of connected callers — extraction decides who (if anyone) to surface to
+- [x] Surfacing pass — separate generative pass (temp 0.8) speaks the thought naturally
+- [x] Messages only pushed to currently-connected clients (no queue)
+- [x] State updates pushed via SSE — replaces 8s polling
+- [x] Client reconnects automatically on stream drop
+- [x] Initiated messages visually distinct (subtle label marker) in the chat
 
 ---
 

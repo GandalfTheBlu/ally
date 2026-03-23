@@ -135,6 +135,12 @@ header {
   color: var(--text-bright);
 }
 
+.message.entity.initiated .label::after {
+  content: ' ·';
+  color: var(--accent);
+  opacity: 0.4;
+}
+
 .cursor {
   display: inline-block;
   width: 8px;

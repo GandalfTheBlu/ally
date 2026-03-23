@@ -5,6 +5,7 @@ const chatRouter = require('./routes/chat');
 const stateRouter = require('./routes/state');
 const thoughtsRouter = require('./routes/thoughts');
 const resetRouter = require('./routes/reset');
+const streamRouter = require('./routes/stream');
 const innerLoop = require('./entity/innerLoop');
 
 const app = express();
@@ -18,6 +19,7 @@ app.use('/api/chat', chatRouter);
 app.use('/api/state', stateRouter);
 app.use('/api/thoughts', thoughtsRouter);
 app.use('/api/reset', resetRouter);
+app.use('/api/stream', streamRouter);
 
 app.listen(PORT, () => {
   console.log(`Server running on http://localhost:${PORT}`);
